@@ -1,0 +1,20 @@
+[project]
+name = "data-analyzer-pro"
+version = "1.0.0"
+description = "Analizador de Datos Profesional con Interfaz Gráfica"
+requires-python = ">=3.10"
+dependencies = [
+    "customtkinter>=5.2.0",
+    "pandas>=2.0.0",
+    "matplotlib>=3.8.0",
+    "seaborn>=0.13.0",
+    "openpyxl>=3.1.0",
+    "scipy>=1.11.0",
+    "Pillow>=10.0.0",
+]
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[tool.pyright]
+extraPaths = [".."]
