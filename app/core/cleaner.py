@@ -11,8 +11,61 @@ class DataCleaner:
         self.dm = data_manager
 
     def _pre_check(self):
-        if not self.dm.has_data():
+        if hasattr(self.dm, "has_data"):
+            if not self.dm.has_data():
+                raise ValueError("No hay datos cargados")
+            return
+
+        if not hasattr(self.dm, "df") or self.dm.df is None or self.dm.df.empty:
             raise ValueError("No hay datos cargados")
+
+    def detect_duplicates(self) -> int:
+        self._pre_check()
+        return int(self.dm.df.duplicated().sum())
+
+    def normalize_text(self, column: str, mode: str = "strip") -> dict:
+        self._pre_check()
+        if column not in self.dm.df.columns:
+            raise ValueError(f"Columna no encontrada: {column}")
+        self.dm.save_state()
+        series = self.dm.df[column].astype(str)
+        if mode == "strip":
+            self.dm.df[column] = series.str.strip()
+        elif mode == "upper":
+            self.dm.df[column] = series.str.upper()
+        elif mode == "lower":
+            self.dm.df[column] = series.str.lower()
+        elif mode == "title":
+            self.dm.df[column] = series.str.title()
+        else:
+            raise ValueError(f"Modo no soportado: {mode}")
+        if hasattr(self.dm, "commit_state"):
+            self.dm.commit_state(f"Normalizar texto {column}")
+        self.dm.notify()
+        return {"column": column, "mode": mode, "success": True}
+
+    def convert_type(self, column: str, target_type: str) -> dict:
+        self._pre_check()
+        self.dm.save_state()
+        try:
+            if target_type == "numeric":
+                self.dm.df[column] = pd.to_numeric(self.dm.df[column], errors="coerce")
+            elif target_type == "datetime":
+                self.dm.df[column] = pd.to_datetime(self.dm.df[column], errors="coerce")
+            elif target_type == "string":
+                self.dm.df[column] = self.dm.df[column].astype(str)
+            elif target_type == "boolean":
+                self.dm.df[column] = self.dm.df[column].astype(str).str.lower().isin(["true", "1", "yes", "y"])
+            elif target_type == "category":
+                self.dm.df[column] = self.dm.df[column].astype("category")
+            else:
+                raise ValueError(f"Tipo no soportado: {target_type}")
+            if hasattr(self.dm, "commit_state"):
+                self.dm.commit_state(f"Convertir tipo {column}")
+            self.dm.notify()
+            return {"success": True, "column": column, "to": target_type}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
 
     # ── Duplicates ─────────────────────────────────────────────────────
 
@@ -24,6 +77,8 @@ class DataCleaner:
             subset=subset, keep=keep
         ).reset_index(drop=True)
         removed = before - len(self.dm.df)
+        if hasattr(self.dm, "commit_state"):
+            self.dm.commit_state("Eliminar duplicados")
         self.dm.notify()
         return {"removed": removed, "remaining": len(self.dm.df)}
 
@@ -52,6 +107,8 @@ class DataCleaner:
             self.dm.df[column] = self.dm.df[column].fillna(0)
 
         missing_after = int(self.dm.df[column].isna().sum())
+        if hasattr(self.dm, "commit_state"):
+            self.dm.commit_state(f"Rellenar nulos {column}")
         self.dm.notify()
         return {
             "column": column,
@@ -66,6 +123,8 @@ class DataCleaner:
         min_count = int(threshold * len(self.dm.df.columns))
         self.dm.df = self.dm.df.dropna(thresh=min_count).reset_index(drop=True)
         dropped = before - len(self.dm.df)
+        if hasattr(self.dm, "commit_state"):
+            self.dm.commit_state("Eliminar filas nulas")
         self.dm.notify()
         return {"dropped": dropped, "remaining": len(self.dm.df)}
 
@@ -76,6 +135,8 @@ class DataCleaner:
         min_count = int(threshold * len(self.dm.df))
         self.dm.df = self.dm.df.dropna(axis=1, thresh=min_count)
         dropped_cols = [c for c in before_cols if c not in self.dm.df.columns]
+        if hasattr(self.dm, "commit_state"):
+            self.dm.commit_state("Eliminar columnas nulas")
         self.dm.notify()
         return {"dropped": len(dropped_cols), "columns": dropped_cols}
 
@@ -83,6 +144,8 @@ class DataCleaner:
         self._pre_check()
         self.dm.save_state()
         self.dm.df = self.dm.df.drop(columns=[column])
+        if hasattr(self.dm, "commit_state"):
+            self.dm.commit_state(f"Eliminar columna {column}")
         self.dm.notify()
         return {"dropped": column, "remaining_cols": len(self.dm.df.columns)}
 
@@ -117,6 +180,8 @@ class DataCleaner:
             self.dm.undo()
             return {"success": False, "error": str(e)}
 
+        if hasattr(self.dm, "commit_state"):
+            self.dm.commit_state(f"Convertir tipo {column}")
         self.dm.notify()
         return {
             "success": True,
@@ -131,6 +196,8 @@ class DataCleaner:
         self._pre_check()
         self.dm.save_state()
         self.dm.df = self.dm.df.rename(columns={old_name: new_name})
+        if hasattr(self.dm, "commit_state"):
+            self.dm.commit_state(f"Renombrar columna {old_name}")
         self.dm.notify()
         return {"from": old_name, "to": new_name}
 
@@ -167,6 +234,8 @@ class DataCleaner:
 
         self.dm.df = self.dm.df[mask].reset_index(drop=True)
         removed = before - len(self.dm.df)
+        if hasattr(self.dm, "commit_state"):
+            self.dm.commit_state(f"Eliminar outliers {column}")
         self.dm.notify()
         return {"success": True, "removed": removed, "remaining": len(self.dm.df)}
 
@@ -179,5 +248,7 @@ class DataCleaner:
         for col in str_cols:
             self.dm.df[col] = self.dm.df[col].str.strip()
         self.dm.df.columns = [c.strip() for c in self.dm.df.columns]
+        if hasattr(self.dm, "commit_state"):
+            self.dm.commit_state("Limpiar espacios")
         self.dm.notify()
         return {"columns_cleaned": len(str_cols)}

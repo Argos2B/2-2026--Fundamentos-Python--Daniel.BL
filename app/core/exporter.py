@@ -5,6 +5,7 @@ from datetime import datetime
 
 import pandas as pd
 from app.core.data_manager import DataManager
+from app.core.export_manager import ExportManager
 
 
 class DataExporter:
@@ -12,6 +13,7 @@ class DataExporter:
 
     def __init__(self, data_manager: DataManager):
         self.dm = data_manager
+        self.manager = ExportManager()
 
     # ── CSV ────────────────────────────────────────────────────────────
 
@@ -25,8 +27,7 @@ class DataExporter:
         if not self.dm.has_data():
             return {"success": False, "error": "No hay datos"}
         df = self.dm.df[columns] if columns else self.dm.df
-        df.to_csv(path, sep=separator, encoding=encoding, index=False)
-        return {"success": True, "path": path, "rows": len(df), "cols": len(df.columns)}
+        return self.manager.export_dataframe(df, path, "csv", separator=separator, encoding=encoding)
 
     # ── Excel ──────────────────────────────────────────────────────────
 
@@ -51,6 +52,42 @@ class DataExporter:
                 missing.to_excel(writer, sheet_name="Valores Faltantes", index=False)
 
         return {"success": True, "path": path, "rows": len(df), "cols": len(df.columns)}
+
+    def to_json(self, path: str, columns=None, lines: bool = False) -> dict:
+        if not self.dm.has_data():
+            return {"success": False, "error": "No hay datos"}
+        df = self.dm.df[columns] if columns else self.dm.df
+        return self.manager.export_dataframe(df, path, "jsonl" if lines else "json", lines=lines)
+
+    def to_html(self, path: str, columns=None) -> dict:
+        if not self.dm.has_data():
+            return {"success": False, "error": "No hay datos"}
+        df = self.dm.df[columns] if columns else self.dm.df
+        return self.manager.export_dataframe(df, path, "html")
+
+    def to_parquet(self, path: str, columns=None) -> dict:
+        if not self.dm.has_data():
+            return {"success": False, "error": "No hay datos"}
+        df = self.dm.df[columns] if columns else self.dm.df
+        return self.manager.export_dataframe(df, path, "parquet")
+
+    def to_xml(self, path: str, columns=None) -> dict:
+        if not self.dm.has_data():
+            return {"success": False, "error": "No hay datos"}
+        df = self.dm.df[columns] if columns else self.dm.df
+        return self.manager.export_dataframe(df, path, "xml")
+
+    def to_yaml(self, path: str, columns=None) -> dict:
+        if not self.dm.has_data():
+            return {"success": False, "error": "No hay datos"}
+        df = self.dm.df[columns] if columns else self.dm.df
+        return self.manager.export_dataframe(df, path, "yaml")
+
+    def to_feather(self, path: str, columns=None) -> dict:
+        if not self.dm.has_data():
+            return {"success": False, "error": "No hay datos"}
+        df = self.dm.df[columns] if columns else self.dm.df
+        return self.manager.export_dataframe(df, path, "feather")
 
     # ── HTML report ────────────────────────────────────────────────────
 

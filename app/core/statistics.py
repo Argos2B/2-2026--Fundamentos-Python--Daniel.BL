@@ -1,8 +1,12 @@
 """Statistical analysis engine."""
 import pandas as pd
 import numpy as np
-from scipy import stats as scipy_stats
 from app.core.data_manager import DataManager
+
+try:
+    from scipy import stats as scipy_stats
+except ImportError:  # pragma: no cover - depends on installation extras
+    scipy_stats = None
 
 
 class StatisticsEngine:
@@ -127,6 +131,8 @@ class StatisticsEngine:
             else series
         )
         try:
+            if scipy_stats is None:
+                raise RuntimeError("scipy no esta instalado")
             stat, p_value = scipy_stats.shapiro(sample)
         except Exception:
             stat, p_value = None, None

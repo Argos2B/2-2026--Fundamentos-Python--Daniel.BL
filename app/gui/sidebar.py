@@ -1,6 +1,8 @@
 """Sidebar navigation component."""
-import customtkinter as ctk
 from typing import Callable
+
+import customtkinter as ctk
+
 from app.gui.theme import Colors, Theme
 
 
@@ -8,13 +10,22 @@ class Sidebar(ctk.CTkFrame):
     """Left sidebar with navigation buttons."""
 
     NAV_ITEMS = [
-        ("📂", "Importar", "import"),
-        ("📊", "Datos", "data"),
-        ("🧹", "Limpiar", "clean"),
-        ("📈", "Estadísticas", "stats"),
-        ("❓", "Faltantes", "missing"),
-        ("📉", "Gráficos", "charts"),
-        ("💾", "Exportar", "export"),
+        ("Dashboard", "dashboard"),
+        ("Importar datos", "import"),
+        ("Mis archivos", "files"),
+        ("Explorador", "data"),
+        ("Limpieza", "clean"),
+        ("Transformacion", "transform"),
+        ("Estadisticas", "stats"),
+        ("Visualizaciones", "charts"),
+        ("Comparacion", "compare"),
+        ("Herramientas", "tools"),
+        ("Exportar", "export"),
+        ("Proyectos", "projects"),
+        ("Papelera", "trash"),
+        ("Historial", "history"),
+        ("Configuracion", "settings"),
+        ("Ayuda", "help"),
     ]
 
     def __init__(self, parent, on_navigate: Callable[[str], None]):
@@ -26,67 +37,71 @@ class Sidebar(ctk.CTkFrame):
         self._build_ui()
 
     def _build_ui(self):
-        # ── Logo area ──
+        from app.core.settings_manager import SettingsManager
+        from app.core.branding_manager import BrandingManager
+        
+        settings = SettingsManager()
+        branding = BrandingManager(settings)
+        brand_data = branding.get_branding()
+        
         logo_frame = ctk.CTkFrame(self, fg_color="transparent")
         logo_frame.pack(fill="x", padx=16, pady=(24, 8))
 
-        ctk.CTkLabel(
-            logo_frame, text="📊", font=(Theme.FONT_FAMILY, 28),
-        ).pack(side="left", padx=(4, 8))
+        logo_img = branding.get_logo_image(size=(32, 32))
+        if logo_img:
+            ctk.CTkLabel(
+                logo_frame,
+                text="",
+                image=logo_img,
+            ).pack(side="left", padx=(0, 10))
 
-        title_frame = ctk.CTkFrame(logo_frame, fg_color="transparent")
-        title_frame.pack(side="left", fill="x")
+        text_frame = ctk.CTkFrame(logo_frame, fg_color="transparent")
+        text_frame.pack(side="left", fill="x", expand=True)
 
         ctk.CTkLabel(
-            title_frame, text="Data Analyzer",
-            font=Theme.heading(16), text_color=Colors.TEXT_PRIMARY, anchor="w",
+            text_frame,
+            text=brand_data.get("app_name", "Data Analyzer"),
+            font=Theme.heading(15),
+            text_color=Colors.TEXT_PRIMARY,
+            anchor="w",
         ).pack(anchor="w")
 
         ctk.CTkLabel(
-            title_frame, text="Pro Edition",
-            font=Theme.small(10), text_color=Colors.ACCENT, anchor="w",
+            text_frame,
+            text=brand_data.get("app_subtitle", "Pro Edition"),
+            font=Theme.small(10),
+            text_color=Colors.ACCENT,
+            anchor="w",
         ).pack(anchor="w")
 
-        # ── Divider ──
-        ctk.CTkFrame(self, fg_color=Colors.BORDER, height=1).pack(
-            fill="x", padx=16, pady=(16, 12),
-        )
-
-        # ── Section label ──
+        ctk.CTkFrame(self, fg_color=Colors.BORDER, height=1).pack(fill="x", padx=16, pady=(16, 12))
         ctk.CTkLabel(
-            self, text="NAVEGACIÓN",
-            font=Theme.small(10), text_color=Colors.TEXT_MUTED, anchor="w",
+            self,
+            text="NAVEGACION",
+            font=Theme.small(10),
+            text_color=Colors.TEXT_MUTED,
+            anchor="w",
         ).pack(fill="x", padx=24, pady=(4, 8))
 
-        # ── Navigation buttons ──
-        for icon, label, view_name in self.NAV_ITEMS:
+        for label, view_name in self.NAV_ITEMS:
             btn = ctk.CTkButton(
                 self,
-                text=f"  {icon}   {label}",
+                text=f"  {label}",
                 font=Theme.body(13),
                 fg_color="transparent",
                 hover_color=Colors.BG_CARD_HOVER,
                 text_color=Colors.TEXT_SECONDARY,
                 anchor="w",
-                height=40,
+                height=36,
                 corner_radius=8,
                 command=lambda v=view_name: self._on_click(v),
             )
-            btn.pack(fill="x", padx=12, pady=2)
+            btn.pack(fill="x", padx=12, pady=1)
             self._buttons[view_name] = btn
 
-        # ── Spacer ──
         ctk.CTkFrame(self, fg_color="transparent").pack(fill="both", expand=True)
-
-        # ── Bottom ──
-        ctk.CTkFrame(self, fg_color=Colors.BORDER, height=1).pack(
-            fill="x", padx=16, pady=(0, 8),
-        )
-
-        ctk.CTkLabel(
-            self, text="v1.0.0",
-            font=Theme.small(10), text_color=Colors.TEXT_MUTED,
-        ).pack(pady=(0, 16))
+        ctk.CTkFrame(self, fg_color=Colors.BORDER, height=1).pack(fill="x", padx=16, pady=(0, 8))
+        ctk.CTkLabel(self, text="v1.0.0", font=Theme.small(10), text_color=Colors.TEXT_MUTED).pack(pady=(0, 16))
 
     def _on_click(self, view_name: str):
         self.set_active(view_name)
