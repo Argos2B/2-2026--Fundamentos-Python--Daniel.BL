@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animación 3D - Multi-Capa y Color Dinámico</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050505; font-family: 'Georgia', 'Times New Roman', serif; }
+        canvas { display: block; }
+
+        /* ===== Overlays de la propuesta (aparecen al final de la animación) ===== */
+        .overlay-screen {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1.4s ease;
+            z-index: 20;
+            color: #fff0f3;
+        }
+        .overlay-screen.visible { opacity: 1; pointer-events: auto; }
+
+        #askScreen { background: radial-gradient(ellipse at center, rgba(30,0,10,0.55) 0%, rgba(5,5,5,0.92) 75%); backdrop-filter: blur(3px); }
+        #askScreen h1 {
+            font-size: clamp(1.8rem, 5vw, 3.4rem);
+            letter-spacing: 0.08em;
+            margin: 0 0 0.3em 0;
+            text-shadow: 0 0 20px #ff2b5e, 0 0 50px #b8003a;
+        }
+        #askScreen p.subtitle {
+            font-size: clamp(1.1rem, 3vw, 1.6rem);
+            opacity: 0.9;
+            margin: 0 0 1.8em 0;
+        }
+        .choice-buttons { display: flex; gap: 1.2rem; flex-wrap: wrap; justify-content: center; }
+        .choice-btn {
+            font-family: inherit;
+            font-size: 1.05rem;
+            padding: 0.85em 1.8em;
+            border-radius: 999px;
+            border: 1px solid rgba(255,220,230,0.5);
+            background: rgba(255,255,255,0.08);
+            color: #fff0f3;
+            cursor: pointer;
+            letter-spacing: 0.03em;
+            transition: transform 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+        }
+        .choice-btn:hover { transform: translateY(-3px) scale(1.04); background: rgba(255,43,94,0.35); box-shadow: 0 0 25px rgba(255,43,94,0.6); }
+        .choice-btn.primary { background: linear-gradient(135deg, #ff2b5e, #b8003a); border-color: transparent; }
+        .choice-btn.primary:hover { box-shadow: 0 0 30px rgba(255,43,94,0.85); }
+
+        /* ---- Campo de flores rojas (respuesta Sí) ---- */
+        #yesScreen {
+            background:
+                radial-gradient(ellipse at 50% 30%, rgba(80,20,60,0.35), transparent 65%),
+                linear-gradient(#0a0212, #1c0512 55%, #0a0212);
+            overflow: hidden;
+        }
+        .flower-field { position: absolute; inset: 0; overflow: hidden; }
+
+        .starfield { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+        .starfield .spark {
+            position: absolute;
+            width: 3px; height: 3px;
+            background: #fff;
+            border-radius: 50%;
+            box-shadow: 0 0 6px 1px rgba(255,255,255,0.8);
+            animation: twinkle 2.6s ease-in-out infinite;
+        }
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.15; transform: scale(0.6); }
+            50% { opacity: 1; transform: scale(1.1); }
+        }
+
+        /* ===== Ramo de flores (composición centrada, como la referencia) ===== */
+        .bouquet {
+            position: absolute;
+            left: 50%; top: 50%;
+            width: min(70vmin, 620px);
+            height: min(78vmin, 680px);
+            transform: translate(-50%, -55%);
+            z-index: 2;
+        }
+        .stems, .flowers-layer { position: absolute; inset: 0; }
+        .stem-line {
+            position: absolute;
+            left: 50%; bottom: 12%;
+            width: 5px;
+            transform-origin: 50% 100%;
+            overflow: visible;
+        }
+        .stem-line-inner {
+            width: 100%; height: 100%;
+            border-radius: 4px;
+            background: linear-gradient(#4d8f4d, #123312);
+            box-shadow: inset -1px 0 2px rgba(0,0,0,0.5);
+        }
+        .ribbon {
+            position: absolute;
+            left: 50%; bottom: 9%;
+            width: 64px; height: 40px;
+            transform: translate(-50%, 0);
+            z-index: 5;
+        }
+        .ribbon::before, .ribbon::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            width: 30px; height: 44px;
+            background: linear-gradient(160deg, #ff4d78, #b8003a);
+            clip-path: polygon(0 0, 100% 0, 60% 100%, 0 70%);
+        }
+        .ribbon::before { left: 2px; transform: rotate(8deg); }
+        .ribbon::after { right: 2px; transform: rotate(-8deg) scaleX(-1); }
+        .ribbon-knot {
+            position: absolute;
+            left: 50%; top: -8px;
+            width: 34px; height: 22px;
+            transform: translateX(-50%);
+            background: radial-gradient(ellipse at 35% 30%, #ff6d92, #c8004a 70%);
+            border-radius: 45%;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+            z-index: 6;
+        }
+
+        .leaf {
+            position: absolute;
+            width: 60px; height: 30px;
+            z-index: 1;
+        }
+        .leaf-inner {
+            width: 100%; height: 100%;
+            background: radial-gradient(ellipse at 30% 30%, #4d8f4d, #163a16 85%);
+            border-radius: 0% 100% 0% 100%;
+        }
+
+        .flower {
+            position: absolute;
+            width: 150px; height: 150px;
+            transform-origin: 50% 100%;
+        }
+        .flower .center {
+            position: absolute; width: 24%; height: 24%; left: 38%; top: 38%; border-radius: 50%; z-index: 4;
+            background: radial-gradient(circle at 40% 35%, #4a1a0a 0%, #2b0e05 55%, #100400 100%);
+            box-shadow: 0 0 8px rgba(0,0,0,0.6), inset 0 0 6px rgba(0,0,0,0.6);
+        }
+        .petal-ring { position: absolute; inset: 0; }
+        .petal {
+            position: absolute;
+            left: 50%; top: 50%;
+            width: 24%; height: 46%;
+            margin-left: -12%; margin-top: -46%;
+            transform-origin: 50% 100%;
+        }
+        .petal-inner {
+            width: 100%; height: 100%;
+            border-radius: 50% 50% 50% 50% / 65% 65% 35% 35%;
+            background: radial-gradient(ellipse at 50% 22%, #ffd0dc 0%, #ff6d95 40%, #d81456 75%, #7a0026 100%);
+            box-shadow: inset 0 0 8px rgba(0,0,0,0.35), inset 2px 2px 4px rgba(255,255,255,0.3);
+        }
+        .petal-ring.inner .petal {
+            width: 17%; height: 32%; margin-left: -8.5%; margin-top: -32%;
+        }
+        .petal-ring.inner .petal-inner {
+            background: radial-gradient(ellipse at 50% 22%, #fff0f4 0%, #ff9db8 45%, #e83a70 85%, #8c0030 100%);
+        }
+
+        @keyframes sway {
+            0%, 100% { transform: rotate(-3deg); }
+            50% { transform: rotate(3deg); }
+        }
+
+        /* ---- Ensamble tipo rompecabezas: cada flor/hoja/tallo vuela a su lugar ---- */
+        .assembling {
+            animation-name: assemblePiece;
+            animation-duration: 1s;
+            animation-timing-function: cubic-bezier(0.2, 0.85, 0.25, 1.1);
+            animation-fill-mode: both;
+        }
+        @keyframes assemblePiece {
+            0% { transform: translate(var(--dx), var(--dy)) rotate(var(--drot)) scale(0.25); opacity: 0; }
+            65% { opacity: 1; }
+            100% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; }
+        }
+        .unfold {
+            animation-name: unfoldPetal;
+            animation-duration: 0.5s;
+            animation-timing-function: ease-out;
+            animation-fill-mode: both;
+        }
+        @keyframes unfoldPetal {
+            0% { transform: scale(0.3); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* ---- Ramo de flores negras + lluvia (respuesta No) ---- */
+        #noScreen {
+            background:
+                radial-gradient(ellipse at 50% 30%, rgba(20,20,25,0.5), transparent 65%),
+                linear-gradient(#000000, #0c0c10 55%, #000000);
+            overflow: hidden;
+        }
+        #noScreen .petal-inner {
+            background: radial-gradient(ellipse at 50% 22%, #55555c, #202024 55%, #050505 100%);
+            box-shadow: inset 0 0 8px rgba(0,0,0,0.6);
+        }
+        #noScreen .petal-ring.inner .petal-inner {
+            background: radial-gradient(ellipse at 50% 22%, #6f6f78, #2c2c30 55%, #0a0a0a 100%);
+        }
+        #noScreen .flower .center { background: radial-gradient(circle, #444, #0a0a0a); }
+        #noScreen .stem-line-inner { background: linear-gradient(#1a1a1a, #050505); }
+        #noScreen .leaf-inner { background: radial-gradient(ellipse at 30% 30%, #262626, #060606 85%); }
+        #noScreen .ribbon::before, #noScreen .ribbon::after { background: linear-gradient(160deg, #3a3a3a, #101010); }
+        #noScreen .ribbon-knot { background: radial-gradient(ellipse at 35% 30%, #4a4a4a, #101010 70%); }
+        .raindrop {
+            position: absolute;
+            top: -10%;
+            width: 1px;
+            height: 60px;
+            background: linear-gradient(to bottom, transparent, rgba(180,200,255,0.5));
+            animation-name: fall;
+            animation-timing-function: linear;
+            animation-iteration-count: infinite;
+        }
+        @keyframes fall {
+            0% { transform: translateY(0); opacity: 0.8; }
+            100% { transform: translateY(110vh); opacity: 0.3; }
+        }
+
+        .overlay-heading {
+            font-size: clamp(1.6rem, 4.5vw, 2.8rem);
+            letter-spacing: 0.06em;
+            position: relative;
+            z-index: 10;
+            text-shadow: 0 0 20px rgba(0,0,0,0.8);
+            margin-bottom: 0.6em;
+        }
+        #yesScreen .overlay-heading { color: #ffe3e9; text-shadow: 0 0 25px #ff2b5e, 0 0 60px #b8003a; }
+        #noScreen .overlay-heading { color: #c9d3ff; text-shadow: 0 0 20px rgba(90,110,200,0.7); }
+
+        /* ---- Pantalla "conozcámonos mejor" ---- */
+        #knowScreen { background: radial-gradient(ellipse at center, rgba(30,10,25,0.6) 0%, rgba(5,5,8,0.94) 75%); backdrop-filter: blur(3px); }
+        #knowScreen h1 { font-size: clamp(1.6rem, 4.5vw, 2.6rem); text-shadow: 0 0 20px #b06bff, 0 0 45px #5a0090; margin-bottom: 0.2em; }
+        #knowScreen p { font-size: clamp(1rem, 2.6vw, 1.3rem); opacity: 0.9; margin: 0.2em 0 1.4em 0; }
+        #knowScreen input[type="date"] {
+            font-family: inherit;
+            font-size: 1.1rem;
+            padding: 0.6em 1em;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.4);
+            background: rgba(255,255,255,0.08);
+            color: #fff0f3;
+            color-scheme: dark;
+            margin-bottom: 1.4em;
+        }
+        #knowThanks {
+            display: none;
+            font-size: 1.3rem;
+            margin-top: 1.2em;
+            color: #ffe9f5;
+            background: rgba(176,107,255,0.12);
+            border: 1px solid rgba(255,255,255,0.35);
+            border-radius: 16px;
+            padding: 1.4em 1.8em;
+            box-shadow: 0 0 30px rgba(176,107,255,0.4);
+        }
+        #knowThanks.visible { display: block; animation: thanksPop 0.6s ease; }
+        #knowThanks .check {
+            display: block;
+            font-size: 2.2rem;
+            margin-bottom: 0.2em;
+            text-shadow: 0 0 20px #7CFF9E, 0 0 40px #2fbf5a;
+        }
+        @keyframes thanksPop {
+            0% { transform: scale(0.7); opacity: 0; }
+            60% { transform: scale(1.08); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 1.2rem;
+            right: 1.4rem;
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.4);
+            background: rgba(0,0,0,0.35);
+            color: #fff0f3;
+            font-size: 1.3rem;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+            transition: transform 0.25s ease, background 0.25s ease;
+        }
+        .close-btn:hover { transform: scale(1.12) rotate(90deg); background: rgba(255,43,94,0.5); }
+    </style>
+</head>
+<body>
+    <div id="askScreen" class="overlay-screen">
+        <h1>Me gustas...</h1>
+        <p class="subtitle">¿Quieres ser mi novia?</p>
+        <div class="choice-buttons">
+            <button id="btnYes" class="choice-btn primary">Sí</button>
+            <button id="btnNo" class="choice-btn">No</button>
+            <button id="btnKnow" class="choice-btn">Conozcámonos mejor</button>
+        </div>
+    </div>
+
+    <div id="yesScreen" class="overlay-screen">
+        <button class="close-btn close-overlay" aria-label="Cerrar">✕</button>
+        <h1 class="overlay-heading">Entonces, oficialmente… tú y yo. ❤️</h1>
+        <div class="starfield" id="yesStars"></div>
+        <div class="bouquet" id="yesBouquet"></div>
+    </div>
+
+    <div id="noScreen" class="overlay-screen">
+        <button class="close-btn close-overlay" aria-label="Cerrar">✕</button>
+        <h1 class="overlay-heading">Está bien, gracias por tu sinceridad</h1>
+        <div class="bouquet" id="noBouquet"></div>
+        <div class="flower-field" id="rainField"></div>
+    </div>
+
+    <div id="knowScreen" class="overlay-screen">
+        <button class="close-btn close-overlay" aria-label="Cerrar">✕</button>
+        <h1>Conozcámonos mejor</h1>
+        <p>Tengamos una cita y hablemos. Elige la fecha que más te guste:</p>
+        <input type="date" id="datePicker" />
+        <div>
+            <button id="btnConfirmDate" class="choice-btn primary">Confirmar</button>
+        </div>
+        <div id="knowThanks"></div>
+    </div>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // 1. CONFIGURACIÓN BÁSICA
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x050505, 0.03); 
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.z = 18;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.body.appendChild(renderer.domElement);
+
+        // 2. EFECTO BLOOM
+        const renderScene = new RenderPass(scene, camera);
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+        bloomPass.threshold = 0.25;
+        bloomPass.strength = 1.0; 
+        bloomPass.radius = 0.6;
+
+        const composer = new EffectComposer(renderer);
+        composer.addPass(renderScene);
+        composer.addPass(bloomPass);
+
+        // 3. VARIABLES
+        const particleCount = 20000; // Subimos a 20k para máximo detalle
+        const mouse = new THREE.Vector2();
+        const targetMouse = new THREE.Vector2();
+        
+        let isTransitioning = false;
+        let morphProgress = 0;
+        let currentShape = 0;
+        let targetShape = 1;
+
+        window.addEventListener('mousemove', (event) => {
+            targetMouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            targetMouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        // ==========================================
+        // 4. NUEVOS GENERADORES DE FORMA Y COLOR 
+        // ==========================================
+
+        // Curva paramétrica clásica de un corazón
+        function heartCurve(t) {
+            const x = 16 * Math.pow(Math.sin(t), 3);
+            const y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+            return { x, y };
+        }
+
+        function getHeartData() {
+            const positions = new Float32Array(particleCount * 3);
+            const colors = new Float32Array(particleCount * 3);
+
+            // Corazón más grande, con cuerpo relleno (más realista) + contorno en
+            // 3 capas de rojo caoba + un contorno blanco pequeño desplazado hacia abajo,
+            // cada uno con "colas" tipo cometa saliendo de la punta y de la muesca superior
+            const OUTER_SCALE = 0.62;
+            const INNER_SCALE = 0.35;
+            const INNER_OFFSET_X = -0.22;
+            const INNER_OFFSET_Y = -2.35;
+
+            // 3 tonos de rojo caoba, cada uno con su propio radio (capas concéntricas)
+            const redLayers = [
+                { scale: OUTER_SCALE,        color: new THREE.Color(0.30, 0.09, 0.06) }, // capa exterior: caoba oscuro
+                { scale: OUTER_SCALE * 0.93, color: new THREE.Color(0.45, 0.15, 0.09) }, // capa media: caoba
+                { scale: OUTER_SCALE * 0.86, color: new THREE.Color(0.60, 0.24, 0.14) }, // capa interior: caoba claro
+            ];
+            const redDim = new THREE.Color(0.12, 0.04, 0.03);
+            const fillCenterColor = new THREE.Color(0.16, 0.04, 0.03); // núcleo del cuerpo, más oscuro
+            const fillEdgeColor = new THREE.Color(0.55, 0.20, 0.12);   // borde del cuerpo, caoba claro
+
+            const innerColor = new THREE.Color(0.55, 0.55, 0.58);
+            const innerColorDim = new THREE.Color(0.18, 0.18, 0.20);
+
+            for (let i = 0; i < particleCount; i++) {
+                // ~60% corazón rojo (3 capas), 40% corazón blanco (interior)
+                const isOuter = i % 5 < 3;
+                // ~10% de partículas forman las colas tipo cometa
+                const isTail = i % 20 === 0 || i % 20 === 1;
+                // Del resto de partículas rojas, ~1/3 rellenan el cuerpo del corazón
+                // para que se vea sólido y realista, en lugar de solo el contorno
+                const isFill = isOuter && !isTail && i % 3 === 0;
+
+                let scale, offX, offY, baseColor, dimColor;
+                if (isOuter) {
+                    const layer = redLayers[i % 3];
+                    scale = layer.scale;
+                    offX = 0;
+                    offY = 0;
+                    baseColor = layer.color;
+                    dimColor = redDim;
+                } else {
+                    scale = INNER_SCALE;
+                    offX = INNER_OFFSET_X;
+                    offY = INNER_OFFSET_Y;
+                    baseColor = innerColor;
+                    dimColor = innerColorDim;
+                }
+
+                let x, y, mixedColor;
+
+                if (isFill) {
+                    // Cuerpo relleno del corazón (relleno radial hacia el interior)
+                    const t = Math.random() * Math.PI * 2;
+                    const p = heartCurve(t);
+                    const k = Math.sqrt(Math.random()); // más denso hacia el borde
+                    const jitter = (Math.random() - 0.5) * 0.3;
+
+                    x = p.x * OUTER_SCALE * k + jitter;
+                    y = p.y * OUTER_SCALE * k + jitter;
+                    mixedColor = fillCenterColor.clone().lerp(fillEdgeColor, k);
+                } else if (!isTail) {
+                    // Partículas del contorno del corazón (línea con grosor)
+                    const t = Math.random() * Math.PI * 2;
+                    const p = heartCurve(t);
+                    // Más dispersión perpendicular para un trazo grueso, tipo pincel
+                    const jitter = (Math.random() - 0.5) * 0.8;
+
+                    x = p.x * scale + offX + jitter;
+                    y = p.y * scale + offY + jitter;
+                    mixedColor = baseColor;
+                } else {
+                    // Partículas de la "cola": salen desde la muesca superior o la punta inferior
+                    const fromTop = Math.random() < 0.5;
+                    const t = fromTop ? 0 : Math.PI;
+                    const p = heartCurve(t);
+                    const cx = p.x * scale + offX;
+                    const cy = p.y * scale + offY;
+
+                    // Distancia sesgada hacia el cúspide (más partículas cerca, menos lejos)
+                    const dist = Math.pow(Math.random(), 2) * 3.6;
+                    const dirX = fromTop ? -0.35 : 0.3;
+                    const dirY = fromTop ? 1.0 : -1.0;
+                    const len = Math.hypot(dirX, dirY);
+                    const curl = Math.sin(dist * 1.6) * 0.5 * (dist / 3.6);
+
+                    x = cx + (dirX / len) * dist + curl;
+                    y = cy + (dirY / len) * dist;
+
+                    const fade = Math.min(1, dist / 3.6);
+                    mixedColor = baseColor.clone().lerp(dimColor, fade);
+                }
+
+                positions[i * 3] = x;
+                positions[i * 3 + 1] = y;
+                positions[i * 3 + 2] = (Math.random() - 0.5) * 0.7;
+
+                colors[i * 3] = mixedColor.r;
+                colors[i * 3 + 1] = mixedColor.g;
+                colors[i * 3 + 2] = mixedColor.b;
+            }
+            return { positions, colors };
+        }
+
+        // Latido suave y lento (una sola onda continua, sin el doble golpe brusco)
+        function getHeartbeatPulse(elapsed) {
+            const beatDuration = 2.6; // mucho más lento y relajado
+            const phase = (elapsed % beatDuration) / beatDuration;
+            return (Math.sin(phase * Math.PI * 2 - Math.PI / 2) * 0.5 + 0.5); // onda suave 0..1
+        }
+
+        function getGalaxyData() {
+            const positions = new Float32Array(particleCount * 3);
+            const colors = new Float32Array(particleCount * 3);
+            
+            for (let i = 0; i < particleCount; i++) {
+                const radius = Math.random() * Math.random() * 15;
+                const branchAngle = (i % 5) * ((Math.PI * 2) / 5); // 5 brazos para parecerse más a la imagen
+                const spin = radius * 0.6;
+                
+                const scatterX = (Math.random() - 0.5) * (1.5 - (radius / 15)); 
+                const scatterY = (Math.random() - 0.5) * 1.0;
+
+                positions[i * 3] = Math.cos(branchAngle + spin) * radius + scatterX;
+                positions[i * 3 + 1] = scatterY; 
+                positions[i * 3 + 2] = Math.sin(branchAngle + spin) * radius + scatterX;
+
+                // COLORES COMO EN TU IMAGEN: Centro amarillo -> Cyan -> Morado/Azul
+                let color = new THREE.Color();
+                if (radius < 1.5) {
+                    color.set('#ffea00'); // Núcleo Amarillo brillante
+                } else if (radius < 6) {
+                    color.set('#00e5ff'); // Cyan
+                } else if (radius < 10) {
+                    color.set('#8a2be2'); // Morado
+                } else {
+                    color.set('#0055ff'); // Azul profundo en los bordes
+                }
+
+                // Estrellas blancas aleatorias brillando
+                if (Math.random() > 0.96) {
+                    color.set('#ffffff');
+                }
+
+                colors[i * 3] = color.r; colors[i * 3 + 1] = color.g; colors[i * 3 + 2] = color.b;
+            }
+            return { positions, colors };
+        }
+
+        function getDNAData() {
+            const positions = new Float32Array(particleCount * 3);
+            const colors = new Float32Array(particleCount * 3);
+            
+            // Paleta de colores para los escalones del ADN (estilo arcoíris de tu imagen)
+            const rungColors = ['#ff0055', '#ff9900', '#ffea00', '#00ffaa', '#0099ff', '#aa00ff'];
+
+            for (let i = 0; i < particleCount; i++) {
+                const y = (Math.random() - 0.5) * 26;
+                const angle = y * 0.6; 
+                let color = new THREE.Color();
+                
+                if (Math.random() > 0.3) { 
+                    // HEBRAS PRINCIPALES (Bordes curvos)
+                    const strand = (Math.random() > 0.5) ? 0 : Math.PI;
+                    positions[i * 3] = Math.cos(angle + strand) * 3 + (Math.random() - 0.5) * 0.6;
+                    positions[i * 3 + 1] = y;
+                    positions[i * 3 + 2] = Math.sin(angle + strand) * 3 + (Math.random() - 0.5) * 0.6;
+                    
+                    color.set('#ffffff'); // Las hebras externas en blanco/gris claro para resaltar los colores de adentro
+                } else {
+                    // ESCALONES INTERNOS MULTINIVEL Y COLORIDOS
+                    const t = (Math.random() * 2 - 1); 
+                    positions[i * 3] = t * (Math.cos(angle) * 3);
+                    positions[i * 3 + 1] = y + (Math.random() - 0.5) * 0.2;
+                    positions[i * 3 + 2] = t * (Math.sin(angle) * 3);
+                    
+                    // Asignar color basado en la altura (y) para crear el gradiente arcoíris
+                    const colorIndex = Math.floor(((y + 13) / 26) * rungColors.length);
+                    const safeIndex = Math.max(0, Math.min(rungColors.length - 1, colorIndex));
+                    color.set(rungColors[safeIndex]);
+                }
+
+                colors[i * 3] = color.r; colors[i * 3 + 1] = color.g; colors[i * 3 + 2] = color.b;
+            }
+            return { positions, colors };
+        }
+
+        const heartData = getHeartData();
+        const galaxyData = getGalaxyData();
+        const dnaData = getDNAData();
+
+        const shapePositions = [heartData.positions, galaxyData.positions, dnaData.positions];
+        const shapeColors = [heartData.colors, galaxyData.colors, dnaData.colors];
+
+        // Fase aleatoria por partícula para el efecto de "vibración"/ensamblaje continuo
+        const particlePhases = new Float32Array(particleCount);
+        for (let i = 0; i < particleCount; i++) {
+            particlePhases[i] = Math.random() * Math.PI * 2;
+        }
+        const JITTER_AMOUNT = 0.035;
+        const JITTER_SPEED = 1.6;
+
+        // 5. SISTEMA DE PARTÍCULAS
+        const geometry = new THREE.BufferGeometry();
+        
+        // Inicializamos con las posiciones y colores de la primera forma (Corazón)
+        geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(shapePositions[0]), 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(shapeColors[0]), 3));
+
+        const material = new THREE.PointsMaterial({
+            size: 0.07,
+            vertexColors: true,
+            blending: THREE.AdditiveBlending,
+            transparent: true,
+            opacity: 0.9,
+            depthWrite: false
+        });
+
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+
+        // 5.1 FLECHA QUE ATRAVIESA EL CORAZÓN (más realista: asta cónica, punta
+        // afilada con cuello metálico, plumas planas y muesca trasera)
+        function createArrow() {
+            const group = new THREE.Group();
+            const SHAFT_LEN = 4.2;
+
+            const shaftGeo = new THREE.CylinderGeometry(0.035, 0.05, SHAFT_LEN, 12);
+            const shaftMat = new THREE.MeshBasicMaterial({ color: 0x8b5a2b });
+            const shaft = new THREE.Mesh(shaftGeo, shaftMat);
+            shaft.rotation.z = Math.PI / 2; // el cilindro apunta por defecto en Y, lo alineamos con X
+            group.add(shaft);
+
+            const headGeo = new THREE.ConeGeometry(0.16, 0.85, 12);
+            const headMat = new THREE.MeshBasicMaterial({ color: 0xe8c37a });
+            const head = new THREE.Mesh(headGeo, headMat);
+            head.rotation.z = -Math.PI / 2; // apunta hacia +X
+            head.position.x = SHAFT_LEN / 2 + 0.42;
+            group.add(head);
+
+            const collarGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.12, 10);
+            const collarMat = new THREE.MeshBasicMaterial({ color: 0xc9a24a });
+            const collar = new THREE.Mesh(collarGeo, collarMat);
+            collar.rotation.z = Math.PI / 2;
+            collar.position.x = SHAFT_LEN / 2 + 0.02;
+            group.add(collar);
+
+            // 3 plumas planas (fletching) repartidas alrededor de la cola
+            const featherGeo = new THREE.ConeGeometry(0.16, 0.7, 4, 1, true);
+            featherGeo.scale(1, 1, 0.08); // aplanar para que parezca una pluma
+            const featherMat = new THREE.MeshBasicMaterial({ color: 0x7a1f1f, side: THREE.DoubleSide });
+            for (let k = 0; k < 3; k++) {
+                const feather = new THREE.Mesh(featherGeo, featherMat);
+                feather.rotation.x = (k * Math.PI * 2) / 3;
+                feather.rotation.z = Math.PI / 2;
+                feather.position.x = -SHAFT_LEN / 2 + 0.3;
+                group.add(feather);
+            }
+
+            // Muesca (nock) al final del asta
+            const nockGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.15, 10);
+            const nockMat = new THREE.MeshBasicMaterial({ color: 0x2a1a10 });
+            const nock = new THREE.Mesh(nockGeo, nockMat);
+            nock.rotation.z = Math.PI / 2;
+            nock.position.x = -SHAFT_LEN / 2 - 0.05;
+            group.add(nock);
+
+            group.visible = false;
+            scene.add(group);
+            return group;
+        }
+
+        const arrow = createArrow();
+        let arrowActive = false;
+        let arrowProgress = 0;
+        const ARROW_DURATION = 0.7; // segundos que tarda en cruzar la escena
+        const ARROW_START = new THREE.Vector3(-16, 1.6, 6);
+        const ARROW_END = new THREE.Vector3(16, -1.0, -6);
+        const ARROW_DIR = ARROW_END.clone().sub(ARROW_START).normalize();
+
+        let shatterActive = false;
+        let shatterStartElapsed = 0;
+        const SHATTER_DURATION = 2.6; // duración del efecto de "mega explosión" (Big Bang)
+        const BURST_STRENGTH = 4.5;
+
+        // 6. LÓGICA DE TRANSICIÓN (Interpolación de Posición y Color)
+        // Todo ocurre en automático: cada forma se sostiene un tiempo y luego
+        // avanza sola a la siguiente. Si la forma actual es el corazón, en vez de
+        // pasar directo se dispara una flecha que lo atraviesa; al impactar, el
+        // corazón se desbarata y forma la galaxia. Un clic también puede adelantar
+        // la acción manualmente.
+        const HOLD_DURATION = 3.0; // segundos que se mantiene cada forma antes de continuar
+        let nextActionTime = HOLD_DURATION;
+
+        function triggerNextAction() {
+            if (currentShape === HEART_INDEX) {
+                arrowActive = true;
+                arrowProgress = 0;
+                arrow.visible = true;
+                arrow.position.copy(ARROW_START);
+                arrow.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), ARROW_DIR);
+            } else {
+                targetShape = (currentShape + 1) % shapePositions.length;
+                isTransitioning = true;
+            }
+        }
+
+        renderer.domElement.style.cursor = 'pointer';
+        renderer.domElement.addEventListener('click', () => {
+            if (sequenceComplete || isTransitioning || arrowActive) return;
+            triggerNextAction();
+        });
+
+        function updateMorphing(progress, elapsed) {
+            const currentPos = shapePositions[currentShape];
+            const targetPos = shapePositions[targetShape];
+            const currentCol = shapeColors[currentShape];
+            const targetCol = shapeColors[targetShape];
+            
+            const positions = geometry.attributes.position.array;
+            const colors = geometry.attributes.color.array;
+            
+            const ease = progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+
+            // Factor de "estallido": al ser atravesado por la flecha, el corazón
+            // se desbarata hacia afuera y luego se desvanece mientras se arma la galaxia
+            let burstFactor = 0;
+            if (shatterActive && elapsed !== undefined) {
+                const shatterT = (elapsed - shatterStartElapsed) / SHATTER_DURATION;
+                burstFactor = Math.max(0, 1 - shatterT);
+                if (shatterT >= 1) shatterActive = false;
+            }
+
+            for (let i = 0; i < particleCount * 3; i++) {
+                // Interpolar Posiciones
+                let value = currentPos[i] + (targetPos[i] - currentPos[i]) * ease;
+
+                // Vibración sutil por partícula: da la sensación de que se están
+                // "armando"/ensamblando continuamente en lugar de estar estáticas
+                if (elapsed !== undefined) {
+                    const particleIndex = (i / 3) | 0;
+                    const axis = i % 3;
+                    const phase = particlePhases[particleIndex] + axis * 2.1;
+                    value += Math.sin(elapsed * JITTER_SPEED + phase) * JITTER_AMOUNT;
+                }
+
+                // Estallido radial: empuja cada partícula hacia afuera desde su
+                // posición original del corazón, decayendo con el tiempo
+                if (burstFactor > 0) {
+                    value += currentPos[i] * burstFactor * BURST_STRENGTH;
+                }
+
+                positions[i] = value;
+                
+                // Interpolar Colores Dinámicos
+                colors[i] = currentCol[i] + (targetCol[i] - currentCol[i]) * ease;
+            }
+            
+            geometry.attributes.position.needsUpdate = true;
+            geometry.attributes.color.needsUpdate = true;
+        }
+
+        // 7. CICLO DE ANIMACIÓN
+        const clock = new THREE.Clock();
+        const HEART_INDEX = 0;
+        const GALAXY_INDEX = 1;
+        const DNA_INDEX = 2;
+        const BASE_BLOOM_STRENGTH = 1.0;
+        let sequenceComplete = false; // la secuencia corre una sola vez: corazón -> galaxia -> ADN
+
+        // ===== Interfaz de la propuesta (aparece 4s después de llegar al ADN) =====
+        // Cada pieza visual (pétalo, hoja, tallo, centro) vuela desde un punto
+        // aleatorio hasta encajar en su lugar, como si fuera un rompecabezas.
+        function assemblePuzzlePiece(el, index, delayBase) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 70 + Math.random() * 120;
+            const dx = Math.cos(angle) * dist;
+            const dy = Math.sin(angle) * dist - 60; // ligero sesgo hacia arriba (caen "del cielo")
+            const rot = (Math.random() * 360 - 180) + 'deg';
+            el.style.setProperty('--dx', dx.toFixed(1) + 'px');
+            el.style.setProperty('--dy', dy.toFixed(1) + 'px');
+            el.style.setProperty('--drot', rot);
+            el.style.animationDelay = (delayBase + index * 0.03 + Math.random() * 0.08) + 's';
+            el.classList.add('assembling');
+        }
+
+        // Disposición fija del ramo (posiciones en % dentro del contenedor .bouquet)
+        const BOUQUET_LAYOUT = [
+            { x: 50, y: 12, s: 0.95, r: -3 },
+            { x: 30, y: 20, s: 0.82, r: 12 },
+            { x: 70, y: 20, s: 0.82, r: -12 },
+            { x: 15, y: 38, s: 0.72, r: 20 },
+            { x: 85, y: 38, s: 0.72, r: -20 },
+            { x: 38, y: 44, s: 1.0, r: -6 },
+            { x: 62, y: 44, s: 1.0, r: 6 }
+        ];
+
+        function buildFlowerEl(scale, flowerIndex) {
+            const flower = document.createElement('div');
+            flower.className = 'flower';
+            const size = 150 * scale;
+            flower.style.width = size + 'px';
+            flower.style.height = size + 'px';
+
+            const outer = document.createElement('div');
+            outer.className = 'petal-ring outer';
+            const OUTER_COUNT = 10;
+            for (let i = 0; i < OUTER_COUNT; i++) {
+                const petal = document.createElement('div');
+                petal.className = 'petal';
+                petal.style.transform = 'rotate(' + (i * (360 / OUTER_COUNT)) + 'deg)';
+                const inner = document.createElement('div');
+                inner.className = 'petal-inner';
+                petal.appendChild(inner);
+                outer.appendChild(petal);
+            }
+
+            const inner8 = document.createElement('div');
+            inner8.className = 'petal-ring inner';
+            const INNER_COUNT = 8;
+            for (let i = 0; i < INNER_COUNT; i++) {
+                const petal = document.createElement('div');
+                petal.className = 'petal';
+                petal.style.transform = 'rotate(' + (i * (360 / INNER_COUNT) + 18) + 'deg)';
+                const inner = document.createElement('div');
+                inner.className = 'petal-inner';
+                petal.appendChild(inner);
+                inner8.appendChild(petal);
+            }
+
+            const center = document.createElement('div');
+            center.className = 'center';
+
+            flower.appendChild(outer);
+            flower.appendChild(inner8);
+            flower.appendChild(center);
+
+            // Ensamblar cada pétalo y el centro como piezas de rompecabezas
+            const pieces = flower.querySelectorAll('.petal-inner, .center');
+            let pIndex = 0;
+            const delayBase = 0.5 + flowerIndex * 0.25;
+            pieces.forEach(piece => assemblePuzzlePiece(piece, pIndex++, delayBase));
+
+            // Pequeño balanceo continuo una vez armada
+            flower.style.animation = 'sway ' + (4 + Math.random() * 2) + 's ease-in-out ' + (delayBase + 1.4) + 's infinite';
+
+            return flower;
+        }
+
+        function populateBouquet(containerId) {
+            const container = document.getElementById(containerId);
+            if (!container || container.childElementCount > 0) return;
+
+            const stemsLayer = document.createElement('div');
+            stemsLayer.className = 'stems';
+            const flowersLayer = document.createElement('div');
+            flowersLayer.className = 'flowers-layer';
+
+            // Punto de convergencia de los tallos (base del ramo)
+            const originX = 50, originY = 88;
+
+            // Un par de hojas grandes cerca de la base
+            [{ x: 32, y: 62, r: -30 }, { x: 68, y: 62, r: 30 }].forEach((leafPos, li) => {
+                const leaf = document.createElement('div');
+                leaf.className = 'leaf';
+                leaf.style.left = leafPos.x + '%';
+                leaf.style.top = leafPos.y + '%';
+                leaf.style.transform = 'rotate(' + leafPos.r + 'deg)' + (li === 1 ? ' scaleX(-1)' : '');
+                const leafInner = document.createElement('div');
+                leafInner.className = 'leaf-inner';
+                leaf.appendChild(leafInner);
+                assemblePuzzlePiece(leafInner, li, 0.2);
+                stemsLayer.appendChild(leaf);
+            });
+
+            BOUQUET_LAYOUT.forEach((pos, idx) => {
+                // Tallo: línea que conecta el punto de convergencia con la flor
+                const dxPct = pos.x - originX;
+                const dyPct = originY - pos.y; // positivo = hacia arriba
+                const angleDeg = Math.atan2(dxPct, dyPct) * (180 / Math.PI);
+                const lengthPct = Math.sqrt(dxPct * dxPct + dyPct * dyPct);
+
+                const stem = document.createElement('div');
+                stem.className = 'stem-line';
+                stem.style.height = lengthPct + '%';
+                stem.style.transform = 'rotate(' + angleDeg + 'deg)';
+                const stemInner = document.createElement('div');
+                stemInner.className = 'stem-line-inner';
+                stem.appendChild(stemInner);
+                assemblePuzzlePiece(stemInner, idx, 0.1);
+                stemsLayer.appendChild(stem);
+
+                // Flor
+                const flower = buildFlowerEl(pos.s, idx);
+                flower.style.left = pos.x + '%';
+                flower.style.top = pos.y + '%';
+                flower.style.marginLeft = (-75 * pos.s) + 'px';
+                flower.style.marginTop = (-75 * pos.s) + 'px'; // centra el disco de pétalos justo en la punta del tallo
+                flowersLayer.appendChild(flower);
+            });
+
+            const ribbon = document.createElement('div');
+            ribbon.className = 'ribbon';
+            const knot = document.createElement('div');
+            knot.className = 'ribbon-knot';
+            ribbon.appendChild(knot);
+
+            container.appendChild(stemsLayer);
+            container.appendChild(flowersLayer);
+            container.appendChild(ribbon);
+        }
+
+        function populateStars(containerId, count) {
+            const container = document.getElementById(containerId);
+            if (!container || container.childElementCount > 0) return;
+            for (let i = 0; i < count; i++) {
+                const star = document.createElement('div');
+                star.className = 'spark';
+                star.style.left = Math.random() * 100 + '%';
+                star.style.top = Math.random() * 70 + '%';
+                const s = 2 + Math.random() * 3;
+                star.style.width = s + 'px';
+                star.style.height = s + 'px';
+                star.style.animationDuration = (1.8 + Math.random() * 2.2) + 's';
+                star.style.animationDelay = (Math.random() * 3) + 's';
+                container.appendChild(star);
+            }
+        }
+
+        function populateRain(containerId, count) {
+            const container = document.getElementById(containerId);
+            if (!container || container.childElementCount > 0) return;
+            for (let i = 0; i < count; i++) {
+                const drop = document.createElement('div');
+                drop.className = 'raindrop';
+                drop.style.left = Math.random() * 100 + '%';
+                drop.style.animationDuration = (0.6 + Math.random() * 0.7) + 's';
+                drop.style.animationDelay = (Math.random() * 2) + 's';
+                container.appendChild(drop);
+            }
+        }
+
+        function showScreen(id) {
+            document.querySelectorAll('.overlay-screen').forEach(el => el.classList.remove('visible'));
+            const el = document.getElementById(id);
+            if (el) el.classList.add('visible');
+        }
+
+        function showProposal() {
+            showScreen('askScreen');
+        }
+
+        document.getElementById('btnYes').addEventListener('click', () => {
+            populateStars('yesStars', 30);
+            populateBouquet('yesBouquet');
+            showScreen('yesScreen');
+        });
+        document.getElementById('btnNo').addEventListener('click', () => {
+            populateBouquet('noBouquet');
+            populateRain('rainField', 70);
+            showScreen('noScreen');
+        });
+        document.getElementById('btnKnow').addEventListener('click', () => {
+            showScreen('knowScreen');
+        });
+        document.querySelectorAll('.close-overlay').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.overlay-screen').forEach(el => el.classList.remove('visible'));
+            });
+        });
+        document.getElementById('btnConfirmDate').addEventListener('click', () => {
+            const dateValue = document.getElementById('datePicker').value;
+            const thanks = document.getElementById('knowThanks');
+            thanks.classList.remove('visible');
+            void thanks.offsetWidth; // reinicia la animación de aparición
+            if (!dateValue) {
+                thanks.innerHTML = '<span class="check">💜</span>Elige una fecha primero';
+            } else {
+                const formatted = new Date(dateValue + 'T00:00:00').toLocaleDateString('es-ES', {
+                    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+                });
+                thanks.innerHTML = '<span class="check">✅</span>¡Confirmado! Nos vemos el<br><strong>' + formatted + '</strong> 💜';
+            }
+            thanks.classList.add('visible');
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            const elapsed = clock.getElapsedTime();
+
+            mouse.x += (targetMouse.x - mouse.x) * delta * 2.0;
+            mouse.y += (targetMouse.y - mouse.y) * delta * 2.0;
+
+            // Peso de la galaxia: 1 cuando se muestra la galaxia, 0 en otras formas,
+            // e interpolado durante la transición hacia/desde la galaxia
+            let galaxyWeight = 0;
+            if (isTransitioning) {
+                if (currentShape === GALAXY_INDEX) galaxyWeight = 1 - morphProgress;
+                else if (targetShape === GALAXY_INDEX) galaxyWeight = morphProgress;
+            } else if (currentShape === GALAXY_INDEX) {
+                galaxyWeight = 1;
+            }
+
+            particles.rotation.y += delta * 0.006; // giro muy lento para todas las formas
+            // Cuando aparece la galaxia, se inclina para verse desde arriba
+            particles.rotation.x = mouse.y * 0.7 + galaxyWeight * (Math.PI / 2);
+            particles.rotation.y += mouse.x * 0.7;
+
+            // Secuencia automática: si no hay nada en curso y se cumplió el tiempo
+            // de espera, se dispara la siguiente acción sola (sin necesidad de clic).
+            // Solo corre una vez: corazón -> galaxia -> ADN, y luego se detiene.
+            if (!sequenceComplete && !isTransitioning && !arrowActive && elapsed >= nextActionTime) {
+                triggerNextAction();
+            }
+
+            // Vuelo de la flecha atravesando el corazón
+            if (arrowActive) {
+                arrowProgress += delta / ARROW_DURATION;
+                const p = Math.min(arrowProgress, 1);
+                arrow.position.lerpVectors(ARROW_START, ARROW_END, p);
+
+                // En el instante en que la flecha cruza el centro, el corazón
+                // se desbarata en una mega explosión y comienza a formar la galaxia
+                if (!shatterActive && p >= 0.5) {
+                    shatterActive = true;
+                    shatterStartElapsed = elapsed;
+                    targetShape = GALAXY_INDEX;
+                    isTransitioning = true;
+                }
+
+                if (p >= 1) {
+                    arrowActive = false;
+                    arrow.visible = false;
+                }
+            }
+
+            // Destello de brillo durante la mega explosión (estilo Big Bang)
+            if (shatterActive) {
+                const shatterT = Math.min(1, (elapsed - shatterStartElapsed) / SHATTER_DURATION);
+                const glow = Math.pow(1 - shatterT, 2);
+                bloomPass.strength = BASE_BLOOM_STRENGTH + glow * 4.0;
+            } else {
+                bloomPass.strength = BASE_BLOOM_STRENGTH;
+            }
+
+            if (isTransitioning) {
+                morphProgress += delta * 0.25;
+                updateMorphing(morphProgress, elapsed);
+                
+                if (morphProgress >= 1) {
+                    const previousShape = currentShape;
+                    morphProgress = 0;
+                    currentShape = targetShape;
+                    isTransitioning = false;
+                    updateMorphing(0, elapsed); // Asegura que termine exacto
+
+                    // Al llegar al ADN termina la secuencia (cada forma aparece una sola vez)
+                    if (previousShape === GALAXY_INDEX && currentShape === DNA_INDEX) {
+                        sequenceComplete = true;
+                        setTimeout(showProposal, 4000); // espera 4s y muestra la propuesta
+                    } else {
+                        nextActionTime = elapsed + HOLD_DURATION; // programa la siguiente acción automática
+                    }
+                }
+            } else {
+                // Aunque no haya transición, mantenemos el efecto de vibración/ensamblaje
+                updateMorphing(0, elapsed);
+            }
+
+            // Peso del corazón: 1 cuando se muestra el corazón, 0 en otras formas,
+            // e interpolado durante la transición hacia/desde el corazón
+            let heartWeight = 0;
+            if (isTransitioning) {
+                if (currentShape === HEART_INDEX) heartWeight = 1 - morphProgress;
+                else if (targetShape === HEART_INDEX) heartWeight = morphProgress;
+            } else if (currentShape === HEART_INDEX) {
+                heartWeight = 1;
+            }
+
+            const pulse = getHeartbeatPulse(elapsed) * heartWeight;
+            const heartScale = 1 + pulse * 0.05;
+            particles.scale.setScalar(heartScale);
+
+            composer.render();
+        }
+
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
