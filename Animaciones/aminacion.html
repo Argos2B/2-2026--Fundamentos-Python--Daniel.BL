@@ -340,6 +340,7 @@
         </div>
         <div id="knowThanks"></div>
     </div>
+
     <script type="importmap">
         {
             "imports": {
@@ -379,18 +380,11 @@
 
         // 3. VARIABLES
         const particleCount = 20000; // Subimos a 20k para máximo detalle
-        const mouse = new THREE.Vector2();
-        const targetMouse = new THREE.Vector2();
-        
+
         let isTransitioning = false;
         let morphProgress = 0;
         let currentShape = 0;
         let targetShape = 1;
-
-        window.addEventListener('mousemove', (event) => {
-            targetMouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-            targetMouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-        });
 
         // ==========================================
         // 4. NUEVOS GENERADORES DE FORMA Y COLOR 
@@ -510,7 +504,7 @@
 
         // Latido suave y lento (una sola onda continua, sin el doble golpe brusco)
         function getHeartbeatPulse(elapsed) {
-            const beatDuration = 2.6; // mucho más lento y relajado
+            const beatDuration = 3.6; // todavía más lento y relajado
             const phase = (elapsed % beatDuration) / beatDuration;
             return (Math.sin(phase * Math.PI * 2 - Math.PI / 2) * 0.5 + 0.5); // onda suave 0..1
         }
@@ -604,7 +598,7 @@
             particlePhases[i] = Math.random() * Math.PI * 2;
         }
         const JITTER_AMOUNT = 0.035;
-        const JITTER_SPEED = 1.6;
+        const JITTER_SPEED = 0.9; // vibración más lenta y relajada
 
         // 5. SISTEMA DE PARTÍCULAS
         const geometry = new THREE.BufferGeometry();
@@ -679,27 +673,28 @@
         const arrow = createArrow();
         let arrowActive = false;
         let arrowProgress = 0;
-        const ARROW_DURATION = 0.7; // segundos que tarda en cruzar la escena
+        const ARROW_DURATION = 1.5; // más lento: tarda más en cruzar la escena
         const ARROW_START = new THREE.Vector3(-16, 1.6, 6);
         const ARROW_END = new THREE.Vector3(16, -1.0, -6);
         const ARROW_DIR = ARROW_END.clone().sub(ARROW_START).normalize();
 
         let shatterActive = false;
         let shatterStartElapsed = 0;
-        const SHATTER_DURATION = 2.6; // duración del efecto de "mega explosión" (Big Bang)
+        const SHATTER_DURATION = 3.6; // más lento: la "mega explosión" dura más
         const BURST_STRENGTH = 4.5;
 
         // 6. LÓGICA DE TRANSICIÓN (Interpolación de Posición y Color)
         // Todo ocurre en automático: cada forma se sostiene un tiempo y luego
         // avanza sola a la siguiente. Si la forma actual es el corazón, en vez de
         // pasar directo se dispara una flecha que lo atraviesa; al impactar, el
-        // corazón se desbarata y forma la galaxia. Un clic también puede adelantar
-        // la acción manualmente.
-        const HOLD_DURATION = 3.0; // segundos que se mantiene cada forma antes de continuar
+        // corazón se desbarata y se arma la galaxia rápidamente.
+        const HOLD_DURATION = 5.5; // segundos que se mantiene cada forma antes de continuar (más relajado)
         let nextActionTime = HOLD_DURATION;
+        let specialArrowUsed = false;
 
         function triggerNextAction() {
-            if (currentShape === HEART_INDEX) {
+            if (currentShape === HEART_INDEX && !specialArrowUsed) {
+                specialArrowUsed = true;
                 arrowActive = true;
                 arrowProgress = 0;
                 arrow.visible = true;
@@ -710,12 +705,6 @@
                 isTransitioning = true;
             }
         }
-
-        renderer.domElement.style.cursor = 'pointer';
-        renderer.domElement.addEventListener('click', () => {
-            if (sequenceComplete || isTransitioning || arrowActive) return;
-            triggerNextAction();
-        });
 
         function updateMorphing(progress, elapsed) {
             const currentPos = shapePositions[currentShape];
@@ -995,9 +984,6 @@
             const delta = clock.getDelta();
             const elapsed = clock.getElapsedTime();
 
-            mouse.x += (targetMouse.x - mouse.x) * delta * 2.0;
-            mouse.y += (targetMouse.y - mouse.y) * delta * 2.0;
-
             // Peso de la galaxia: 1 cuando se muestra la galaxia, 0 en otras formas,
             // e interpolado durante la transición hacia/desde la galaxia
             let galaxyWeight = 0;
@@ -1008,10 +994,20 @@
                 galaxyWeight = 1;
             }
 
-            particles.rotation.y += delta * 0.006; // giro muy lento para todas las formas
-            // Cuando aparece la galaxia, se inclina para verse desde arriba
-            particles.rotation.x = mouse.y * 0.7 + galaxyWeight * (Math.PI / 2);
-            particles.rotation.y += mouse.x * 0.7;
+            // Peso del ADN: igual que el anterior, para darle su propio giro
+            let dnaWeight = 0;
+            if (isTransitioning) {
+                if (currentShape === DNA_INDEX) dnaWeight = 1 - morphProgress;
+                else if (targetShape === DNA_INDEX) dnaWeight = morphProgress;
+            } else if (currentShape === DNA_INDEX) {
+                dnaWeight = 1;
+            }
+
+            // Giro base lento para todas las formas, más un giro extra cuando se
+            // trata de la galaxia o el ADN, para que ambos den vueltas visiblemente.
+            particles.rotation.y += delta * 0.015 + galaxyWeight * delta * 0.12 + dnaWeight * delta * 0.18;
+            // La galaxia se inclina para verse desde arriba
+            particles.rotation.x = galaxyWeight * (Math.PI / 2);
 
             // Secuencia automática: si no hay nada en curso y se cumplió el tiempo
             // de espera, se dispara la siguiente acción sola (sin necesidad de clic).
@@ -1051,7 +1047,9 @@
             }
 
             if (isTransitioning) {
-                morphProgress += delta * 0.25;
+                // El ensamblaje de una forma a otra es rápido (se arma rápido),
+                // aunque el giro constante de cada forma sea lento.
+                morphProgress += delta * 0.7;
                 updateMorphing(morphProgress, elapsed);
                 
                 if (morphProgress >= 1) {
@@ -1061,10 +1059,11 @@
                     isTransitioning = false;
                     updateMorphing(0, elapsed); // Asegura que termine exacto
 
-                    // Al llegar al ADN termina la secuencia (cada forma aparece una sola vez)
+                    // Al llegar al ADN, la secuencia queda completa y la propuesta
+                    // se muestra automáticamente en pantalla completa poco después.
                     if (previousShape === GALAXY_INDEX && currentShape === DNA_INDEX) {
                         sequenceComplete = true;
-                        setTimeout(showProposal, 4000); // espera 4s y muestra la propuesta
+                        setTimeout(showProposal, 1800);
                     } else {
                         nextActionTime = elapsed + HOLD_DURATION; // programa la siguiente acción automática
                     }
